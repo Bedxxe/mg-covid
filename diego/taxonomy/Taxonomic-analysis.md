@@ -325,14 +325,14 @@ We obtained a DGEList object that we need to transform into an object that phylo
 and merge. Again, we will use the `otu_table` and `merge_phyloseq` command:
 ~~~
 covid.otu2 <- otu_table(z@.Data[[1]], taxa_are_rows = TRUE)
-covid2 <- merge_phyloseq(covid.otu2, covid.tax,meta)
+covid2r <- merge_phyloseq(covid.otu2, covid.tax,meta)
 ~~~
 {: .language-r}
 
 We will transform the absolute counts to relative abundance so as to compare 
 the samples between them. We will use a useful command in the phyloseq package`transform_sample_counts` to accomplish this:
 ~~~
-head(covid2@otu_table@.Data)[,c(1:6)]
+head(covid2r@otu_table@.Data)[,c(1:6)]
 ~~~
 {: .language-r}
 ~~~
@@ -346,7 +346,7 @@ head(covid2@otu_table@.Data)[,c(1:6)]
 ~~~
 {: .output}
 ~~~
-covid2 <- transform_sample_counts(physeq = covid2, function(x) x*100/sum(x))
+covid2 <- transform_sample_counts(physeq = covid2r, function(x) x*100/sum(x))
 head(covid2@otu_table@.Data)[,c(1:6)]
 ~~~
 {: .language-r}
@@ -369,7 +369,7 @@ and distance `metric`. We will use [NMDS](https://academic.oup.com/bioinformatic
 There is a sensible reason for this, but a discussion on that issue is beyond the scope of this little document. Let's just mention,
 that you can display all the distance metrics phyloseq can use by typing the command `distanceMethodList`
 ~~~
-covid.ord <- ordinate(physeq = covid2,method = "NMDS", distance = "bray")
+covid.ord <- ordinate(physeq = covid2r,method = "NMDS", distance = "bray")
 head(covid.ord$points)
 ~~~
 {: .language-r}
@@ -387,7 +387,7 @@ SS01 -0.1104110  0.15863121
 Now we have a two dimentional representation of the diversity among our data. We will use `ggplot2` to 
 plot it:
 ~~~
-plot_ordination(covid2, covid.ord, color = "Covid") +
+plot_ordination(covid2r, covid.ord, color = "Covid") +
   stat_ellipse(geom = "polygon", alpha= 0.2,aes(fill=Covid),
                type = "norm", linetype = 5,size = 2) +
   scale_fill_manual(values=c("#35978f", "#762a83", "#1b7837"))+
@@ -460,6 +460,154 @@ Repeating the last command with different equations as models, we can construct 
 ###### Table 1. Results from the analysis with adonis
 
 ![image](https://user-images.githubusercontent.com/67386612/121611894-f39e4e80-ca1e-11eb-9d63-d6e261816c4e.png)
+
+## Pheatmap obtention
+
+First we will cut the OTUs to Genus level with the next command:
+~~~
+covid.gene <- tax_glom(covid2r,taxrank = rank_names(covid2)[6])
+head(covid.gene@tax_table@.Data)
+~~~
+{: .language-r}
+~~~
+        Kingdom    Phylum           Class                 Order              Family              
+573     "Bacteria" "Proteobacteria" "Gammaproteobacteria" "Enterobacterales" "Enterobacteriaceae"
+550     "Bacteria" "Proteobacteria" "Gammaproteobacteria" "Enterobacterales" "Enterobacteriaceae"
+562     "Bacteria" "Proteobacteria" "Gammaproteobacteria" "Enterobacterales" "Enterobacteriaceae"
+251535  "Bacteria" "Proteobacteria" "Gammaproteobacteria" "Enterobacterales" "Enterobacteriaceae"
+138072  "Bacteria" "Proteobacteria" "Gammaproteobacteria" "Enterobacterales" "Enterobacteriaceae"
+1778263 "Bacteria" "Proteobacteria" "Gammaproteobacteria" "Enterobacterales" "Enterobacteriaceae"
+        Genus                     Species
+573     "Klebsiella"              NA     
+550     "Enterobacter"            NA     
+562     "Escherichia"             NA     
+251535  "Candidatus Blochmannia"  NA     
+138072  "Candidatus Hamiltonella" NA     
+1778263 "Candidatus Hoaglandella" NA 
+~~~
+{: .output}
+
+In order to get the dominant taxa, we will only maintain the OTUs whose reads 
+are > 5000 reads in all the samples:
+
+~~~
+covid.gene.top <- filter_taxa(covid.gene, function(x) mean(x) > 5000, TRUE)
+~~~
+{: .language-r}
+
+The package `pheatmap` need a dataframe as input, so we will take this data from
+our `phyloseq` object
+
+~~~
+covid.frame <- as.data.frame(covid.gene.top@otu_table@.Data)
+rownames(covid.frame) <- covid.gene.top@tax_table@.Data[,6]
+str(covid.frame)
+~~~
+{: .language-r}
+~~~
+'data.frame': 39 obs. of  31 variables:
+ $ SS07: num  147428 35870 87998 31874 781 ...
+ $ SS03: num  117692 28115 72386 389820 22257 ...
+ $ SS02: num  106081 25763 65138 560089 30972 ...
+ $ SS05: num  112001 24676 61695 157477 20029 ...
+ $ SS06: num  109743 25651 64848 75283 811 ...
+ $ SS01: num  96335 23180 57977 16800 333 ...
+ $ SS04: num  142404 33107 85099 172327 10599 ...
+ $ SS14: num  163426 37526 93009 56592 702 ...
+ $ SS15: num  186410 45723 110252 282 58 ...
+ $ SS08: num  152377 35531 88427 1448 933 ...
+ $ SS16: num  175079 40408 101063 66765 32101 ...
+ $ SS17: num  109610 25705 64944 16858 2854 ...
+ $ SS18: num  131860 27899 73711 184435 11231 ...
+ $ SS12: num  149528 31894 88394 486476 25216 ...
+ $ SS10: num  72129 11668 27995 47138 1215 ...
+ $ SS19: num  145986 33970 83480 45774 588 ...
+ $ SS11: num  140317 26211 68362 421141 32985 ...
+ $ SS20: num  10462 2306 2021 4677 3462 ...
+ $ SS21: num  151962 33239 86936 62223 13135 ...
+ $ SS13: num  101377 19264 47351 24331 2667 ...
+ $ SS22: num  110297 20895 47836 35517 1947 ...
+ $ SS23: num  51473 9201 28116 316628 44739 ...
+ $ SS24: num  30179 4606 7989 5160 550 ...
+ $ SS25: num  50530 8879 39803 19508 1992 ...
+ $ SS26: num  195850 45719 111041 99807 12299 ...
+ $ SS27: num  96274 19200 53859 1181 655 ...
+ $ SS28: num  207109 50447 121491 24279 645 ...
+ $ SS29: num  144310 32242 83096 126889 34594 ...
+ $ SS30: num  154524 35735 87070 102786 5765 ...
+ $ SS31: num  131418 30288 79063 308963 10218 ...
+ $ SS32: num  37590 6086 14798 22822 643 ...
+~~~
+{: .output}
+
+To help the representation of the data, we will transform the number of reads into 
+log10:
+
+~~~
+top.log <- log10(covid.frame)
+top.log[top.log=="Inf"] <- 0
+top.log[top.log=="-Inf"] <- 0
+~~~
+{: .language-r}
+
+Now, we need a new dataframe where we will allocate the metadata that we want to 
+visualize in the `pheatmap`
+
+~~~
+my.col <- data.frame(Symptoms=meta$Symptoms, row.names = rownames(meta))
+my.col$Family <- meta$Family
+my.col$PCR <- meta$Covid
+my.col$Same <- meta$Same
+str(my.col)
+~~~
+{: .language-r}
+~~~
+'data.frame': 31 obs. of  4 variables:
+ $ Symptoms: chr  "Yes" "Yes" "Yes" "Yes" ...
+ $ Family  : chr  "Fam1" "Fam1" "Fam1" "Fam1" ...
+ $ PCR     : chr  "Positive" "P-Negative" "P-Negative" "P-Negative" ...
+ $ Same    : int  1 1 0 0 2 2 0 0 0 3 ...
+~~~
+{: .output}
+
+We also will generate a list that containts the colors that we want to use 
+to represent our data:
+
+~~~
+my_color <- list(Symptoms = c(`Yes`= "deeppink4", `No`= "aquamarine4"),
+                 Family = c(`Fam1`="deepskyblue3" , `Fam2`="indianred4", 
+                            `Fam3`="purple4", `Na`="#bababa"),
+                 PCR = c(`Positive`="deeppink3", `P-Negative`="turquoise4", `Negative`="turquoise"),
+                 Same = c(`0`="#bababa", `1`="brown4" , `2`="#377eb8", 
+                          `3`="darkolivegreen4", `4`="#984ea3", `5`="darkgoldenrod3"))
+str(my_color)
+~~~
+{: .language-r}
+~~~
+List of 4
+ $ Symptoms: Named chr [1:2] "deeppink4" "aquamarine4"
+  ..- attr(*, "names")= chr [1:2] "Yes" "No"
+ $ Family  : Named chr [1:4] "deepskyblue3" "indianred4" "purple4" "#bababa"
+  ..- attr(*, "names")= chr [1:4] "Fam1" "Fam2" "Fam3" "Na"
+ $ PCR     : Named chr [1:3] "deeppink3" "turquoise4" "turquoise"
+  ..- attr(*, "names")= chr [1:3] "Positive" "P-Negative" "Negative"
+ $ Same    : Named chr [1:6] "#bababa" "brown4" "#377eb8" "darkolivegreen4" ...
+  ..- attr(*, "names")= chr [1:6] "0" "1" "2" "3" ...
+~~~
+{: .output}
+
+And we will use the next piece of code to obtain the `pheatmap`
+~~~
+pheatmap(top.log,
+         color = (c("#ffffff","#fff7fb","#ece2f0","#d0d1e6","#a6bddb","#67a9cf","#3690c0",
+                    "#02818a","#016c59","#014636")), 
+        cluster_cols = TRUE, 
+         cutree_cols = 3, cutree_rows = 5, border_color ="#000000",
+         annotation_col = my.col, annotation_colors = my_color,)
+~~~
+{: .language-r}
+
+![image](https://user-images.githubusercontent.com/67386612/156274039-38ff8aa4-5c2e-43e8-9f9e-a680957e9882.png)
 
 This took me early-mornings and nights to [grok](https://en.wikipedia.org/wiki/Grok). This is the main reason why I desired to share it 
 not only by the code, but with an explanatory document to help other fellow bioinformatician to cope with the academic life.
