@@ -17,7 +17,7 @@ library(ggpubr)
 library(vegan)
 library("picante")
 
-setwd("C:/Users/cairo/Documents/sideprojects/covid/from-reads")
+setwd("D:/documentos/sideprojects/covid/from-reads")
 #-- First, we need to import our data with phyloseq command --#                                                    --#
 
 covid <- import_biom("non-human/covid.biom")
@@ -32,12 +32,16 @@ meta <- sample_data(meta)
 covid <- merge_phyloseq(covid,meta)
 
 #-- Removing non bacterial OTUs --#
+sample_sums(covid)
 
-bacteria <- subset_taxa(covid, Kingdom == "Bacteria")
-covid <- prune_taxa(taxa_names(bacteria), covid)
+summary(covid@tax_table@.Data[,1] == "Bacteria")
+summary(covid@tax_table@.Data[,5] != "mitocondria")
+summary(covid@tax_table@.Data[,3] != "Chloroplast")
 
-no_cont <- subset_taxa(covid, Family != "mitocondria" & Class != "Chloroplast")
-covid <- prune_taxa(taxa_names(no_cont), covid)
+covid <- subset_taxa(covid, Kingdom == "Bacteria")
+
+covid <- subset_taxa(covid, Family != "mitocondria" & Class != "Chloroplast")
+
 
 #-- Analyzing the deepness of the sequenciation --#
 
@@ -49,7 +53,7 @@ ggplot(data = deepn, aes(y= reads, x = samples))+
   theme(axis.text.x = element_text(angle = 90, hjust = 1))+
   geom_hline(yintercept = 4242198, col= "cyan3", size = 1.5, alpha = 0.5) +
   xlab("Samples") + ylab("Number of reads") +
-  ggtitle("Deepness of covid libraries") +
+  ggtitle("Depth of covid libraries") +
   theme(axis.text.x = element_text(size = 12, vjust = 0.5),
         axis.text.y = element_text(size = 12),
         axis.title=element_text(size=14))
@@ -101,26 +105,55 @@ z2<-edgeRnorm(covid, method = "upperquartile")
 #-- Defining the new phyloseq object --#
 covid.otu2 <- otu_table(z@.Data[[1]], taxa_are_rows = TRUE)
 #-- Merging all the objects in the new normalized phyloseq object --#
-covid2 <- merge_phyloseq(covid.otu2, covid.tax,meta)
+covid2r <- merge_phyloseq(covid.otu2, covid.tax,meta)
 
 #-- Let's transform the read counts in relative abundances --#
-covid2 <- transform_sample_counts(physeq = covid2, function(x) x*100/sum(x))
+covid2 <- transform_sample_counts(physeq = covid2r, function(x) x*100/sum(x))
 
 #-- In order to use vegan for the multivariate analysis, we will extract our data from the phyloseq objects --#
 d.covid <- t(covid2@otu_table@.Data)
 
 #-- Obtainment of beta diversity with NMDS --#
-covid.ord <- ordinate(physeq = covid2,method = "NMDS", distance = "bray")
+covid.ord <- ordinate(physeq = covid2r,method = "PCoA", distance = "bray")
 #-- Let's plot the beta diversity analysis --#
-plot_ordination(covid2, covid.ord, color = "Covid") +
+plot_ordination(covid2r, covid.ord, color = "Covid") +
   stat_ellipse(geom = "polygon", alpha= 0.2,aes(fill=Covid),
+               type = "t", linetype = 5,size = 2) +
+  scale_fill_manual(values=c("#35978f", "#762a83", "#1b7837"))+
+  theme_bw()+
+  geom_point(size=4, alpha=0.6) +
+  scale_color_manual(values=c("#35978f", "#762a83", "#1b7837")) +
+  theme_bw()+
+  labs(title = "PCoA - Bray-Curtis")+
+  theme(axis.text.x = element_text(size = 12, vjust = 0.5),
+        axis.text.y = element_text(size = 12),
+        axis.title=element_text(size=14))
+#-- By Family clusterization --#
+plot_ordination(covid2, covid.ord, color = "Family") +
+  stat_ellipse(geom = "polygon", alpha= 0.2,aes(fill=Family),
+               type = "norm", linetype = 5,size = 2) +
+  theme_bw()+
+  geom_point(size=4, alpha=0.8) +
+  theme_bw()+
+  labs(title = "NMDS - Bray-Curtis") 
+#-- By Sympthoms clusterization --#
+plot_ordination(covid2, covid.ord, color = "Symptoms") +
+  stat_ellipse(geom = "polygon", alpha= 0.2,aes(fill=Symptoms),
                type = "norm", linetype = 5,size = 2) +
   scale_fill_manual(values=c("#35978f", "#762a83", "#1b7837"))+
   theme_bw()+
-  geom_point(size=4, alpha=0.8) +
+  geom_point(size=5, alpha=0.8) +
   scale_color_manual(values=c("#35978f", "#762a83", "#1b7837")) +
   theme_bw()+
   labs(title = "NMDS - Bray-Curtis") 
+
+plot_ordination(covid2, covid.ord, color = "Sex") +
+  stat_ellipse(geom = "polygon", alpha= 0.2,aes(fill=Sex),
+               type = "norm", linetype = 5,size = 2) +
+  theme_bw()+
+  geom_point(size=5, alpha=0.8) +
+  theme_bw()+
+  labs(title = "NMDS - Bray-Curtis")
 
 #-- Getting the data needed for the multivariate analysis --#
 meta.covid <- data.frame(Age = as.factor(covid2@sam_data@.Data[[5]]),
@@ -128,61 +161,55 @@ meta.covid <- data.frame(Age = as.factor(covid2@sam_data@.Data[[5]]),
                          Pacient = as.factor(covid2@sam_data@.Data[[3]]),
                          Symt = as.factor(covid2@sam_data@.Data[[6]]),
                          Diag = as.factor(covid2@sam_data@.Data[[7]]),
-                         Covid = as.factor(covid2@sam_data@.Data[[10]]))
+                         Covid = as.factor(covid2@sam_data@.Data[[10]]),
+                         Family = as.factor(covid@sam_data@.Data[[8]]))
 #-- Multivariate analysis --#
 adonis(d.covid ~ Diag * Symt, data = meta.covid, permutations = 999, strata = meta.covid$Covid)
 adonis(d.covid ~ Diag , data = meta.covid, permutations = 999)
 adonis(d.covid ~ Symt , data = meta.covid, permutations = 999)
 adonis(d.covid ~ Age , data = meta.covid, permutations = 999)
 adonis(d.covid ~ Covid , data = meta.covid, permutations = 999)
+adonis(d.covid ~ Family, data = meta.covid, permutations = 999)
 ## A combined analysis of multivariance ##
-adonis(d.covid ~ Age*Pacient, data = meta.covid, permutations = 999)
+adonis(d.covid ~ Family*Symt, data = meta.covid, permutations = 999)
 
+dis <- vegdist(d.covid, method = "bray")
+mod <- betadisper(d = dis, group = meta.covid$Symt)
+anova(mod)
+plot(mod)
 
 #N According to the MAGs annotation from Professor Nelly Selem, we have some taxa that made
 #N the majority of the read counts, we will extract this Genera of microbes, and do the
 #N same analysis as with the entire dataset
 
-#-- Extracting the bacteria at Genus level that where identified at MAG level --#
-genera <- c("Streptococcus","Actinomyces","Eubacterium",
-            "Gemella","Rothia","Prevotella","Megasphaera")
+#-- Assembling the data for the pheatmap --##
+covid.gene <- tax_glom(covid2r,taxrank = rank_names(covid2)[6])
+covid.gene.top <- filter_taxa(covid.gene, function(x) mean(x) > 5000, TRUE)
 
-t.covid <- tax_glom(physeq = covid2, taxrank = "Genus")
-#-- Defining the `tax_table` for the phyloseq object --#
-tax.covid <- as.data.frame(covid2@tax_table@.Data)
-tax.covid <- tax.covid[(tax.covid$Genus %in% genera),]
-row.names(tax.covid)
-tax.covid <- as.matrix(tax.covid)
-tax.covid <- tax_table(tax.covid)
-#-- Defining the `otu_table` for the phyloseq object --#
-otu.covid <- as.data.frame(covid2@otu_table@.Data)
-otu.covid <- otu.covid[row.names(tax.covid),]
-otu.covid <- otu_table(otu.covid, taxa_are_rows = TRUE)
+covid.frame <- as.data.frame(covid.gene.top@otu_table@.Data)
+rownames(covid.frame) <- covid.gene.top@tax_table@.Data[,6]
 
-#-- Merging all into a trimmed phyloseq object --#
-trim.covid <- merge_phyloseq(otu.covid, tax.covid,meta)
+top.log <- log10(covid.frame)
+top.log[top.log=="Inf"] <- 0
+top.log[top.log=="-Inf"] <- 0
 
-#-- Obtainment of beta diversity with NMDS --#
-covid.ord <- ordinate(physeq = trim.covid,method = "NMDS", distance = "bray")
-#-- Let's plot the new beta diversity analysis --#
-plot_ordination(trim.covid, covid.ord, color = "Covid") +
-  stat_ellipse(geom = "polygon", alpha= 0.2,aes(fill=Covid),
-               type = "t", linetype = 5,size = 2) +
-  scale_fill_manual(values=c("#35978f", "#762a83", "#1b7837"))+
-  theme_bw()+
-  geom_point(size=4, alpha=0.8) +
-  scale_color_manual(values=c("#35978f", "#762a83", "#1b7837")) +
-  theme_bw()+
-  labs(title = "NMDS - Bray-Curtis") 
+breaksList = seq(2, 7, by = .5)
 
-#-- Extraction of the data from the phyloseq object for the multivariate analysis -##
-t.covid <- t(trim.covid@otu_table@.Data)
+my.col <- data.frame(Symptoms=meta$Symptoms, row.names = rownames(meta))
+my.col$Family <- meta$Family
+my.col$PCR <- meta$Covid
+my.col$Same <- meta$Same
 
-#-- Multivariate analysis --#
-adonis(t.covid ~ Diag * Symt, data = meta.covid, permutations = 999)
-adonis(t.covid ~ Diag , data = meta.covid, permutations = 999)
-adonis(t.covid ~ Symt , data = meta.covid, permutations = 999)
-adonis(t.covid ~ Age , data = meta.covid, permutations = 999)
-adonis(t.covid ~ Covid , data = meta.covid, permutations = 999)
-## A combined analysis of multivariance ##
-adonis(t.covid ~ Covid*Diag, data = meta.covid, permutations = 999)
+my_color <- list(Symptoms = c(`Yes`= "deeppink4", `No`= "aquamarine4"),
+                 Family = c(`Fam1`="deepskyblue3" , `Fam2`="indianred4", 
+                            `Fam3`="purple4", `Na`="#bababa"),
+                 PCR = c(`Positive`="deeppink3", `P-Negative`="turquoise4", `Negative`="turquoise"),
+                 Same = c(`0`="#bababa", `1`="brown4" , `2`="#377eb8", 
+                          `3`="darkolivegreen4", `4`="#984ea3", `5`="darkgoldenrod3"))
+
+pheatmap(top.log,
+         color = (c("#ffffff","#fff7fb","#ece2f0","#d0d1e6","#a6bddb","#67a9cf","#3690c0",
+                    "#02818a","#016c59","#014636")), 
+        cluster_cols = TRUE, 
+         cutree_cols = 3, cutree_rows = 5, border_color ="#000000",
+         annotation_col = my.col, annotation_colors = my_color,)
