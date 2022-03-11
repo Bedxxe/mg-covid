@@ -210,7 +210,7 @@ Another point to take into account is the depth of our sequencing, and how is di
 We will create a data.frame to allocate the data needed to see this information with `ggplot2`:
 ~~~
 deepn <- data.frame(
-  samples=as.character(map(strsplit(colnames(covid@otu_table@.Data), "_"),1)),
+  samples=as.character(colnames(covid@otu_table@.Data)),
   reads= sample_sums(covid))
 str(deepn)
 ~~~
