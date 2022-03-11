@@ -100,9 +100,6 @@ colnames(covid@tax_table@.Data) <- c("Kingdom", "Phylum", "Class", "Order", "Fam
 head(covid@tax_table@.Data)
 ~~~
 {: .language-r}
-~~~
-~~~
-{: .output}
 
 ~~~
         Kingdom    Phylum           Class                 Order              Family               Genus       
